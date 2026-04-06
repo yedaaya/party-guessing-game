@@ -1,0 +1,14 @@
+{
+  "name": "party-guessing-game",
+  "version": "1.0.0",
+  "description": "Multiplayer Hebrew party guessing game - How well do you know your friends?",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "socket.io": "^4.7.5"
+  }
+}
