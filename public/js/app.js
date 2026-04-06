@@ -9,7 +9,6 @@ const App = (() => {
   };
 
   function init() {
-    renderScreen(LobbyScreen.renderHome());
     setupSocketListeners();
     QuestionSetupScreen.init();
 
@@ -19,13 +18,131 @@ const App = (() => {
 
     document.addEventListener('click', () => SoundManager.resume(), { once: true });
     document.addEventListener('touchstart', () => SoundManager.resume(), { once: true });
+
+    // If we have a saved session, show a "reconnecting" screen while we rejoin
+    if (Socket.hasSavedSession()) {
+      renderScreen(`
+        <div class="screen">
+          <div class="screen-content" style="justify-content: center; min-height: 80vh">
+            <span class="logo-emoji">🎭</span>
+            <h1 class="title">מתחבר מחדש...</h1>
+            <div class="waiting-dots" style="justify-content: center"><span></span><span></span><span></span></div>
+          </div>
+        </div>
+      `);
+      // Socket.js will handle the rejoin on 'connect' and call handleRejoin
+    } else {
+      renderScreen(LobbyScreen.renderHome());
+    }
+
+    // Warn before closing/refreshing during active game
+    window.addEventListener('beforeunload', (e) => {
+      if (state.screen !== 'home' && state.roomCode) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+  }
+
+  function handleRejoin(gameState) {
+    state.roomCode = gameState.roomCode;
+    state.isHost = gameState.isHost;
+    state.players = gameState.players;
+    state.questions = gameState.questions || [];
+
+    const myPlayer = gameState.players.find(p => p.id === Socket.getId());
+    state.playerName = myPlayer?.name || state.playerName;
+
+    // Route to the correct screen based on game state
+    switch (gameState.state) {
+      case 'lobby':
+        state.screen = 'waiting';
+        renderScreen(LobbyScreen.renderWaiting(state.roomCode, state.players, state.isHost));
+        break;
+
+      case 'question_setup':
+        if (state.isHost) {
+          state.screen = 'question-setup';
+          renderScreen(QuestionSetupScreen.render());
+        } else {
+          state.screen = 'waiting';
+          renderScreen(LobbyScreen.renderWaiting(state.roomCode, state.players, state.isHost));
+        }
+        break;
+
+      case 'answering':
+        state.screen = 'answering';
+        if (state.questions.length > 0) {
+          QuestionsScreen.init(state.questions);
+          renderScreen(QuestionsScreen.render());
+        } else {
+          renderScreen(renderWaitingGeneric('ממתינים...'));
+        }
+        break;
+
+      case 'waiting_to_start':
+        if (state.isHost) {
+          renderScreen(`
+            <div class="screen">
+              <div class="screen-content" style="justify-content: center; min-height: 80vh">
+                <span style="font-size: 4rem">🎉</span>
+                <h1 class="title">כולם סיימו!</h1>
+                <p class="subtitle">הגיע הזמן להתחיל לנחש</p>
+                <button class="btn btn-success btn-lg btn-full" onclick="App.startGame()">
+                  🚀 התחלת המשחק
+                </button>
+              </div>
+            </div>
+          `);
+        } else {
+          renderScreen(renderWaitingGeneric('ממתינים שהמנהל יתחיל את המשחק...'));
+        }
+        break;
+
+      case 'guessing':
+        renderScreen(renderWaitingGeneric('סיבוב ניחושים מתנהל... ממתינים לסיבוב הבא'));
+        break;
+
+      case 'round_results':
+      case 'leaderboard':
+        state.screen = 'leaderboard';
+        LeaderboardScreen.init(gameState.leaderboard);
+        renderScreen(LeaderboardScreen.render());
+        break;
+
+      case 'final':
+        state.screen = 'leaderboard';
+        LeaderboardScreen.init(gameState.leaderboard);
+        renderScreen(LeaderboardScreen.render());
+        break;
+
+      default:
+        state.screen = 'waiting';
+        renderScreen(LobbyScreen.renderWaiting(state.roomCode, state.players, state.isHost));
+        break;
+    }
+  }
+
+  function renderWaitingGeneric(message) {
+    return `
+      <div class="screen">
+        <div class="screen-content" style="justify-content: center; min-height: 80vh">
+          <span class="logo-emoji">🎭</span>
+          <h1 class="title">מי אמר מה?</h1>
+          <p class="subtitle">${message}</p>
+          <div class="status-badge waiting">
+            <span class="waiting-dots"><span></span><span></span><span></span></span>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   function setupSocketListeners() {
     Socket.on('player-joined', (data) => {
       state.players = data.players;
-      SoundManager.join();
       if (state.screen === 'waiting') {
+        SoundManager.join();
         renderScreen(LobbyScreen.renderWaiting(state.roomCode, state.players, state.isHost));
       }
     });
@@ -219,6 +336,7 @@ const App = (() => {
 
   function showHome() {
     state = { screen: 'home', roomCode: null, playerName: null, isHost: false, players: [], questions: [] };
+    Socket.clearSession();
     renderScreen(LobbyScreen.renderHome());
   }
 
@@ -276,6 +394,6 @@ const App = (() => {
     renderScreen, createRoom, hostJoin, showJoinScreen, joinRoom,
     showHome, showQuestionSetup, backToWaiting,
     startGame, showLeaderboard, nextRound, playAgain,
-    isHost, getPlayers
+    isHost, getPlayers, handleRejoin
   };
 })();

@@ -42,28 +42,49 @@ app.get('/api/questions', (req, res) => {
 io.on('connection', (socket) => {
   let currentRoom = null;
 
-  socket.on('rejoin-room', ({ code, name, oldSocketId, isHost }) => {
+  socket.on('rejoin-room', ({ code, name, oldSocketId, isHost }, callback) => {
     const roomCode = code?.toUpperCase();
     const room = rooms.get(roomCode);
-    if (!room) return;
+    if (!room) {
+      if (typeof callback === 'function') callback({ error: 'room_gone' });
+      return;
+    }
 
     currentRoom = roomCode;
     socket.join(roomCode);
 
-    // Update player's socket ID in the room
+    let reconnected = false;
+
+    // Try by old socket ID first
     if (oldSocketId && room.players[oldSocketId]) {
       room.reconnectPlayer(socket.id, oldSocketId);
-    } else if (name) {
-      // Player not found by old ID, try by name
-      const existingEntry = Object.entries(room.players).find(([, p]) => p.name === name);
-      if (existingEntry) {
-        room.reconnectPlayer(socket.id, existingEntry[0]);
-      }
+      reconnected = true;
     }
 
-    // Update host if needed
-    if (isHost && oldSocketId === room.hostSocketId) {
-      room.hostSocketId = socket.id;
+    // Fall back to name-based reconnection
+    if (!reconnected && name) {
+      reconnected = room.reconnectByName(socket.id, name);
+    }
+
+    // Update host reference
+    if (reconnected && room.isHost(socket.id)) {
+      // Already correct
+    } else if (isHost) {
+      const hostByName = Object.entries(room.players).find(([id, p]) => p.name === name && id === socket.id);
+      if (hostByName) room.hostSocketId = socket.id;
+    }
+
+    if (reconnected) {
+      const gameState = room.getGameState();
+      gameState.isHost = room.isHost(socket.id);
+
+      io.to(roomCode).emit('player-joined', { players: room.getPlayerList() });
+
+      if (typeof callback === 'function') {
+        callback({ success: true, gameState });
+      }
+    } else {
+      if (typeof callback === 'function') callback({ error: 'player_not_found' });
     }
   });
 

@@ -39,7 +39,8 @@ class GameRoom {
 
   addPlayer(socketId, name) {
     if (this.state !== STATES.LOBBY) return { error: 'המשחק כבר התחיל' };
-    if (Object.values(this.players).some(p => p.name === name)) {
+    const existing = Object.values(this.players).find(p => p.name === name);
+    if (existing && existing.connected) {
       return { error: 'שם זה כבר תפוס' };
     }
 
@@ -57,6 +58,7 @@ class GameRoom {
   removePlayer(socketId) {
     if (this.players[socketId]) {
       this.players[socketId].connected = false;
+      this.players[socketId].disconnectedAt = Date.now();
     }
     this.lastActivity = Date.now();
   }
@@ -64,13 +66,53 @@ class GameRoom {
   reconnectPlayer(socketId, oldSocketId) {
     if (this.players[oldSocketId]) {
       this.players[socketId] = { ...this.players[oldSocketId], connected: true };
+      delete this.players[socketId].disconnectedAt;
       this.scores[socketId] = this.scores[oldSocketId] || 0;
       delete this.players[oldSocketId];
       delete this.scores[oldSocketId];
+
+      // Migrate answers to new socket ID
+      Object.keys(this.answers).forEach(qId => {
+        if (this.answers[qId][oldSocketId]) {
+          this.answers[qId][socketId] = this.answers[qId][oldSocketId];
+          delete this.answers[qId][oldSocketId];
+        }
+      });
+
+      // Migrate round guesses
+      if (this.roundGuesses[oldSocketId]) {
+        this.roundGuesses[socketId] = this.roundGuesses[oldSocketId];
+        delete this.roundGuesses[oldSocketId];
+      }
+
       if (this.hostSocketId === oldSocketId) {
         this.hostSocketId = socketId;
       }
     }
+  }
+
+  reconnectByName(socketId, name) {
+    const entry = Object.entries(this.players).find(([, p]) => p.name === name);
+    if (entry) {
+      const [oldId] = entry;
+      this.reconnectPlayer(socketId, oldId);
+      return true;
+    }
+    return false;
+  }
+
+  getGameState() {
+    return {
+      state: this.state,
+      roomCode: this.code,
+      players: this.getPlayerList(),
+      questions: this.questions.map(q => ({ id: q.id, text: q.text, supportsImage: q.supportsImage })),
+      currentRound: this.currentRound,
+      scores: this.scores,
+      timerEnabled: this.timerEnabled,
+      timerDuration: this.timerDuration,
+      leaderboard: this.getLeaderboard()
+    };
   }
 
   setQuestions(questions) {
