@@ -111,7 +111,7 @@ const GuessingScreen = (() => {
 
           <div class="round-header">
             <div class="round-number">סיבוב ${roundData.roundNumber} מתוך ${roundData.totalRounds}</div>
-            <div class="round-question">${roundData.question.text}</div>
+            <div class="round-question">${escapeHtml(roundData.question.text)}</div>
           </div>
 
           <div class="guessing-container">

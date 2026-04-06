@@ -97,13 +97,15 @@ io.on('connection', (socket) => {
 
   socket.on('join-room', ({ code, name }, callback) => {
     if (!code || !name) return callback({ error: 'חסרים פרטים' });
+    const trimmedName = String(name).trim();
+    if (trimmedName.length < 1 || trimmedName.length > 20) return callback({ error: 'שם חייב להיות בין 1 ל-20 תווים' });
     const roomCode = code.toUpperCase();
     const room = rooms.get(roomCode);
 
     if (!room) return callback({ error: 'חדר לא נמצא' });
     if (room.state !== STATES.LOBBY) return callback({ error: 'המשחק כבר התחיל' });
 
-    const result = room.addPlayer(socket.id, name);
+    const result = room.addPlayer(socket.id, trimmedName);
     if (result.error) return callback({ error: result.error });
 
     currentRoom = roomCode;
@@ -111,7 +113,7 @@ io.on('connection', (socket) => {
 
     io.to(roomCode).emit('player-joined', {
       players: room.getPlayerList(),
-      newPlayer: { id: socket.id, name, avatar: result.avatar, color: result.color }
+      newPlayer: { id: socket.id, name: trimmedName, avatar: result.avatar, color: result.color }
     });
 
     callback({ success: true, avatar: result.avatar, color: result.color, players: room.getPlayerList() });

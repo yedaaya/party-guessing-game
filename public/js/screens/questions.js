@@ -26,7 +26,7 @@ const QuestionsScreen = (() => {
           </div>
 
           <div class="glass-card" style="text-align: center">
-            <div class="question-display">${q.text}</div>
+            <div class="question-display">${escapeHtml(q.text)}</div>
           </div>
 
           <div class="answer-area">

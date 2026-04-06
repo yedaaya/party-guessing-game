@@ -64,7 +64,7 @@ const ResultsScreen = (() => {
         <div class="screen-content">
           <div class="round-header">
             <div class="round-number">סיבוב ${resultsData.roundNumber} מתוך ${resultsData.totalRounds}</div>
-            <div class="round-question">${resultsData.question}</div>
+            <div class="round-question">${escapeHtml(resultsData.question)}</div>
           </div>
 
           <div class="section-label">📋 מי ענה מה?</div>
@@ -96,7 +96,7 @@ const ResultsScreen = (() => {
                 <div class="micro-stat-card">
                   <div class="micro-stat-label">📖 ספר פתוח</div>
                   <div class="micro-stat-emoji">${getPlayerAvatar(microStats.openBook.playerId)}</div>
-                  <div class="micro-stat-name">${microStats.openBook.name}</div>
+                  <div class="micro-stat-name">${escapeHtml(microStats.openBook.name)}</div>
                   <div class="micro-stat-value">${microStats.openBook.pct}% ניחשו נכון</div>
                 </div>
               ` : ''}
@@ -104,7 +104,7 @@ const ResultsScreen = (() => {
                 <div class="micro-stat-card">
                   <div class="micro-stat-label">🕵️ אניגמה</div>
                   <div class="micro-stat-emoji">${getPlayerAvatar(microStats.enigma.playerId)}</div>
-                  <div class="micro-stat-name">${microStats.enigma.name}</div>
+                  <div class="micro-stat-name">${escapeHtml(microStats.enigma.name)}</div>
                   <div class="micro-stat-value">${microStats.enigma.pct}% ניחשו נכון</div>
                 </div>
               ` : ''}

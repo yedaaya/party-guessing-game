@@ -153,7 +153,7 @@ const PodiumScreen = (() => {
     if (stats.playerCards) {
       const playerCardHtml = Object.entries(stats.playerCards).map(([id, card]) => `
         <div class="stat-card">
-          <div class="stat-name">${card.name}</div>
+          <div class="stat-name">${escapeHtml(card.name)}</div>
           <div class="stat-value">${card.guessedCorrectPct}% ניחשו אותו/ה נכון</div>
           <div class="stat-value">${card.totalCorrectGuesses} ניחושים נכונים</div>
         </div>

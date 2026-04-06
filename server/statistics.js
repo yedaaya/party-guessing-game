@@ -75,6 +75,7 @@ function calculateStatistics(players, roundResults, questions) {
   let openBook = null;
   let highestPct = -1;
 
+  // First pass: find mystery person (hardest to guess)
   playerIds.forEach(id => {
     const total = guessedTotal[id] || 0;
     if (total === 0) return;
@@ -83,7 +84,14 @@ function calculateStatistics(players, roundResults, questions) {
       lowestPct = pct;
       mysteryPerson = id;
     }
-    if (pct > highestPct) {
+  });
+
+  // Second pass: find open book (easiest to guess), prefer different player
+  playerIds.forEach(id => {
+    const total = guessedTotal[id] || 0;
+    if (total === 0) return;
+    const pct = guessedCorrectly[id] / total;
+    if (pct > highestPct || (pct === highestPct && id !== mysteryPerson)) {
       highestPct = pct;
       openBook = id;
     }
@@ -172,11 +180,18 @@ function calculateRoundMicroStats(roundResult, players) {
   let openBookId = null, maxPct = -1;
   let enigmaId = null, minPct = Infinity;
 
+  // Find enigma first (hardest to guess)
   Object.entries(totalPerTarget).forEach(([pid, total]) => {
     if (total === 0) return;
     const pct = correctPerTarget[pid] / total;
-    if (pct > maxPct) { maxPct = pct; openBookId = pid; }
     if (pct < minPct) { minPct = pct; enigmaId = pid; }
+  });
+
+  // Find open book, prefer different player than enigma
+  Object.entries(totalPerTarget).forEach(([pid, total]) => {
+    if (total === 0) return;
+    const pct = correctPerTarget[pid] / total;
+    if (pct > maxPct || (pct === maxPct && pid !== enigmaId)) { maxPct = pct; openBookId = pid; }
   });
 
   return {

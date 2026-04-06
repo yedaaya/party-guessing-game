@@ -21,7 +21,7 @@ const QuestionSetupScreen = (() => {
       return `
         <div class="question-item ${isSelected ? 'selected' : ''}" data-qid="${q.id}" onclick="QuestionSetupScreen.toggleQuestion('${q.id}')">
           <div class="question-checkbox"></div>
-          <span class="question-text">${q.text}</span>
+          <span class="question-text">${escapeHtml(q.text)}</span>
           ${q.supportsImage ? '<span class="question-badge">📷 תמונה</span>' : ''}
         </div>
       `;
@@ -30,7 +30,7 @@ const QuestionSetupScreen = (() => {
     const customItems = customQuestions.map((q, i) => `
       <div class="question-item selected" data-custom="${i}">
         <div class="question-checkbox"></div>
-        <span class="question-text">${q.text}</span>
+        <span class="question-text">${escapeHtml(q.text)}</span>
         ${q.supportsImage ? '<span class="question-badge">📷 תמונה</span>' : ''}
         <span style="cursor:pointer; color: var(--accent-pink); padding: 4px" onclick="QuestionSetupScreen.removeCustom(${i})">✕</span>
       </div>
