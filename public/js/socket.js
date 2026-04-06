@@ -16,7 +16,13 @@ const Socket = (() => {
   }
 
   function emit(event, data, callback) {
-    socket.emit(event, data, callback);
+    if (typeof data === 'function') {
+      socket.emit(event, data);
+    } else if (callback) {
+      socket.emit(event, data, callback);
+    } else {
+      socket.emit(event, data);
+    }
   }
 
   function getId() {
