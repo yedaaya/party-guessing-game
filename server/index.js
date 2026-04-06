@@ -80,6 +80,16 @@ io.on('connection', (socket) => {
 
       io.to(roomCode).emit('player-joined', { players: room.getPlayerList() });
 
+      // If rejoining during guessing and haven't submitted, auto-submit empty
+      if (room.state === STATES.GUESSING && !room.roundGuesses[socket.id]) {
+        room.submitGuesses(socket.id, {});
+        // Check if all guesses are now in
+        if (room.allGuessesSubmitted()) {
+          const results = room.calculateRoundResults();
+          io.to(roomCode).emit('round-results', results);
+        }
+      }
+
       if (typeof callback === 'function') {
         callback({ success: true, gameState });
       }
@@ -250,9 +260,22 @@ io.on('connection', (socket) => {
           players: room.getPlayerList()
         });
 
+        // If mid-guessing, auto-submit empty guesses so the round doesn't hang
+        if (room.state === STATES.GUESSING && !room.roundGuesses[socket.id]) {
+          room.submitGuesses(socket.id, {});
+          if (room.allGuessesSubmitted()) {
+            const results = room.calculateRoundResults();
+            io.to(currentRoom).emit('round-results', results);
+          }
+        }
+
+        // Don't delete the room immediately -- keep it for 5 min for reconnects
         const activePlayers = Object.values(room.players).filter(p => p.connected);
         if (activePlayers.length === 0) {
-          rooms.delete(currentRoom);
+          setTimeout(() => {
+            const stillEmpty = Object.values(room.players).filter(p => p.connected).length === 0;
+            if (stillEmpty) rooms.delete(currentRoom);
+          }, 5 * 60 * 1000);
         }
       }
     }
