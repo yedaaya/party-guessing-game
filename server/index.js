@@ -42,6 +42,31 @@ app.get('/api/questions', (req, res) => {
 io.on('connection', (socket) => {
   let currentRoom = null;
 
+  socket.on('rejoin-room', ({ code, name, oldSocketId, isHost }) => {
+    const roomCode = code?.toUpperCase();
+    const room = rooms.get(roomCode);
+    if (!room) return;
+
+    currentRoom = roomCode;
+    socket.join(roomCode);
+
+    // Update player's socket ID in the room
+    if (oldSocketId && room.players[oldSocketId]) {
+      room.reconnectPlayer(socket.id, oldSocketId);
+    } else if (name) {
+      // Player not found by old ID, try by name
+      const existingEntry = Object.entries(room.players).find(([, p]) => p.name === name);
+      if (existingEntry) {
+        room.reconnectPlayer(socket.id, existingEntry[0]);
+      }
+    }
+
+    // Update host if needed
+    if (isHost && oldSocketId === room.hostSocketId) {
+      room.hostSocketId = socket.id;
+    }
+  });
+
   socket.on('create-room', (callback) => {
     const code = generateRoomCode();
     const room = new GameRoom(code, socket.id);

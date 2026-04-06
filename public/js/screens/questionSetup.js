@@ -78,6 +78,7 @@ const QuestionSetupScreen = (() => {
               <div class="timer-options" id="timer-options" style="${timerEnabled ? '' : 'opacity:0.4; pointer-events:none'}">
                 ${timerOptions.map(o => `
                   <button class="timer-option ${timerDuration === o.value ? 'active' : ''}"
+                    data-value="${o.value}"
                     onclick="QuestionSetupScreen.setTimer(${o.value})">${o.label}</button>
                 `).join('')}
               </div>
@@ -102,7 +103,12 @@ const QuestionSetupScreen = (() => {
     } else {
       selectedIds.add(id);
     }
-    App.renderScreen(render());
+    // Update DOM in-place instead of full re-render
+    const item = document.querySelector(`.question-item[data-qid="${id}"]`);
+    if (item) {
+      item.classList.toggle('selected', selectedIds.has(id));
+    }
+    updateStartButton();
   }
 
   function addCustom() {
@@ -139,9 +145,17 @@ const QuestionSetupScreen = (() => {
     SoundManager.click();
     timerDuration = value;
     document.querySelectorAll('.timer-option').forEach(btn => {
-      btn.classList.toggle('active', parseInt(btn.onclick.toString().match(/\d+/)?.[0]) === value);
+      btn.classList.toggle('active', btn.dataset.value === String(value));
     });
-    App.renderScreen(render());
+  }
+
+  function updateStartButton() {
+    const totalSelected = selectedIds.size + customQuestions.length;
+    const btn = document.querySelector('#question-setup-screen .btn-success');
+    if (btn) {
+      btn.disabled = totalSelected < 3;
+      btn.textContent = `🚀 התחלת שאלות (${totalSelected} שאלות)`;
+    }
   }
 
   function confirm() {

@@ -173,6 +173,7 @@ const App = (() => {
       state.playerName = name;
       state.players = res.players;
       state.screen = 'waiting';
+      Socket.setRoom(state.roomCode, name, state.isHost);
       renderScreen(LobbyScreen.renderWaiting(state.roomCode, state.players, state.isHost));
     });
   }
@@ -211,6 +212,7 @@ const App = (() => {
       state.players = res.players;
       state.isHost = false;
       state.screen = 'waiting';
+      Socket.setRoom(code, name, false);
       renderScreen(LobbyScreen.renderWaiting(state.roomCode, state.players, state.isHost));
     });
   }

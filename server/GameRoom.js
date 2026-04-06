@@ -226,6 +226,7 @@ class GameRoom {
     return {
       playerResults,
       reveal,
+      answers: this.roundShuffledAnswers,
       microStats,
       question: question.text,
       roundNumber: this.currentRound + 1,

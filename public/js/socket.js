@@ -1,6 +1,26 @@
 const Socket = (() => {
   const socket = io();
   const listeners = {};
+  let _roomCode = null;
+  let _playerName = null;
+  let _isHost = false;
+  let _previousId = null;
+
+  socket.on('connect', () => {
+    // On reconnection, re-associate with the room
+    if (_roomCode && _playerName && _previousId) {
+      socket.emit('rejoin-room', {
+        code: _roomCode,
+        name: _playerName,
+        oldSocketId: _previousId,
+        isHost: _isHost
+      });
+    }
+  });
+
+  socket.on('disconnect', () => {
+    _previousId = socket.id;
+  });
 
   function on(event, callback) {
     if (!listeners[event]) listeners[event] = [];
@@ -29,5 +49,11 @@ const Socket = (() => {
     return socket.id;
   }
 
-  return { on, off, emit, getId, socket };
+  function setRoom(code, name, isHost) {
+    _roomCode = code;
+    _playerName = name;
+    _isHost = isHost;
+  }
+
+  return { on, off, emit, getId, setRoom, socket };
 })();

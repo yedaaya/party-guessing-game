@@ -10,28 +10,40 @@ const ResultsScreen = (() => {
   function render() {
     if (!resultsData || !myResults) return '';
 
-    const resultItems = Object.entries(myResults.details || {}).map(([answerId, detail], index) => {
-      const revealData = resultsData.reveal[answerId];
-      if (!revealData) return '';
-      const answerData = resultsData.playerResults[Socket.getId()]?.details[answerId];
-      const isCorrect = detail.correct;
-      const guessedPlayer = resultsData.reveal[answerId];
-
-      // Who did I guess?
-      const guessedId = detail.guessed;
-      const actualId = detail.actual;
-      const isSelf = actualId === Socket.getId();
-
-      if (isSelf) return '';
-
-      const actualPlayer = resultsData.reveal[answerId];
+    // Full answer reveal: show every answer with the player who wrote it
+    const answerRevealItems = Object.entries(resultsData.reveal).map(([answerId, player], index) => {
+      const answerData = resultsData.answers?.[answerId];
+      const text = answerData?.text || '';
+      const image = answerData?.image || null;
 
       return `
-        <div class="result-item ${isCorrect ? 'correct' : 'wrong'}" style="animation-delay: ${index * 150}ms">
+        <div class="result-item correct" style="animation-delay: ${index * 120}ms; background: var(--bg-card); border-color: var(--border-glass)">
+          <div style="display:flex; align-items:center; gap:8px; min-width:80px">
+            <span style="font-size:1.3rem">${player.avatar}</span>
+            <strong style="color:${player.color}">${player.name}</strong>
+          </div>
+          <div class="result-details" style="flex:1; border-right: 2px solid ${player.color}; padding-right:12px">
+            <div style="font-size:0.95rem">${escapeHtml(text)}</div>
+            ${image ? `<img src="${image}" style="max-width:120px; max-height:80px; border-radius:8px; margin-top:4px" alt="">` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Personal results: what did I get right/wrong
+    const myGuessItems = Object.entries(myResults.details || {}).map(([answerId, detail], index) => {
+      const actualPlayer = resultsData.reveal[answerId];
+      if (!actualPlayer) return '';
+      const isSelf = detail.actual === Socket.getId();
+      if (isSelf) return '';
+
+      const isCorrect = detail.correct;
+      return `
+        <div class="result-item ${isCorrect ? 'correct' : 'wrong'}" style="animation-delay: ${index * 100}ms">
           <span class="result-icon">${isCorrect ? '✅' : '❌'}</span>
           <div class="result-details">
             <div><strong>${actualPlayer.avatar} ${actualPlayer.name}</strong></div>
-            ${!isCorrect ? `<div class="result-answer" style="color: var(--accent-pink)">ניחשת: ${getPlayerName(guessedId)}</div>` : ''}
+            ${!isCorrect ? `<div class="result-answer" style="color: var(--accent-pink)">ניחשת: ${getPlayerName(detail.guessed)}</div>` : ''}
           </div>
         </div>
       `;
@@ -55,6 +67,13 @@ const ResultsScreen = (() => {
             <div class="round-question">${resultsData.question}</div>
           </div>
 
+          <div class="section-label">📋 מי ענה מה?</div>
+          <div class="results-list stagger-children">
+            ${answerRevealItems}
+          </div>
+
+          <div class="divider"></div>
+
           <div class="score-breakdown animate-scale-in">
             <div style="font-size: 1.3rem; margin-bottom: 4px">${accuracyLabel}</div>
             <div class="score-total" id="round-score">+${myResults.totalPoints}</div>
@@ -66,8 +85,9 @@ const ResultsScreen = (() => {
             <div class="score-detail">${myResults.correctCount} מתוך ${myResults.matchableCount} נכונים</div>
           </div>
 
+          <div class="section-label">🎯 הניחושים שלך</div>
           <div class="results-list stagger-children">
-            ${resultItems}
+            ${myGuessItems}
           </div>
 
           ${microStats ? `
