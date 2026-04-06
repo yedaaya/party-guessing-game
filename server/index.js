@@ -8,7 +8,7 @@ const { QUESTION_BANK } = require('./questions');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  maxHttpBufferSize: 5e6 // 5MB for image uploads
+  maxHttpBufferSize: 5e6
 });
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -25,7 +25,6 @@ function generateRoomCode() {
   return code;
 }
 
-// Clean up old rooms every 30 minutes
 setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms) {
@@ -42,7 +41,7 @@ app.get('/api/questions', (req, res) => {
 io.on('connection', (socket) => {
   let currentRoom = null;
 
-  socket.on('rejoin-room', ({ code, name, oldSocketId, isHost }, callback) => {
+  socket.on('rejoin-room', ({ code, name, oldSocketId }, callback) => {
     const roomCode = code?.toUpperCase();
     const room = rooms.get(roomCode);
     if (!room) {
@@ -55,44 +54,33 @@ io.on('connection', (socket) => {
 
     let reconnected = false;
 
-    // Try by old socket ID first
     if (oldSocketId && room.players[oldSocketId]) {
       room.reconnectPlayer(socket.id, oldSocketId);
       reconnected = true;
     }
 
-    // Fall back to name-based reconnection
     if (!reconnected && name) {
       reconnected = room.reconnectByName(socket.id, name);
     }
 
-    // Update host reference
-    if (reconnected && room.isHost(socket.id)) {
-      // Already correct
-    } else if (isHost) {
-      const hostByName = Object.entries(room.players).find(([id, p]) => p.name === name && id === socket.id);
-      if (hostByName) room.hostSocketId = socket.id;
-    }
-
     if (reconnected) {
-      const gameState = room.getGameState();
+      const gameState = room.getGameState(socket.id);
       gameState.isHost = room.isHost(socket.id);
 
       io.to(roomCode).emit('player-joined', { players: room.getPlayerList() });
 
-      // If rejoining during guessing and haven't submitted, auto-submit empty
       if (room.state === STATES.GUESSING && !room.roundGuesses[socket.id]) {
         room.submitGuesses(socket.id, {});
-        // Check if all guesses are now in
+        const activePlayers = Object.entries(room.players).filter(([, p]) => p.connected).length;
+        const submitted = Object.keys(room.roundGuesses).length;
+        io.to(roomCode).emit('guess-progress', { submitted, total: activePlayers });
         if (room.allGuessesSubmitted()) {
           const results = room.calculateRoundResults();
           io.to(roomCode).emit('round-results', results);
         }
       }
 
-      if (typeof callback === 'function') {
-        callback({ success: true, gameState });
-      }
+      if (typeof callback === 'function') callback({ success: true, gameState });
     } else {
       if (typeof callback === 'function') callback({ error: 'player_not_found' });
     }
@@ -108,6 +96,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('join-room', ({ code, name }, callback) => {
+    if (!code || !name) return callback({ error: 'חסרים פרטים' });
     const roomCode = code.toUpperCase();
     const room = rooms.get(roomCode);
 
@@ -131,6 +120,7 @@ io.on('connection', (socket) => {
   socket.on('setup-questions', ({ questions, timerEnabled, timerDuration }, callback) => {
     const room = rooms.get(currentRoom);
     if (!room || !room.isHost(socket.id)) return callback?.({ error: 'לא מורשה' });
+    if (!questions || questions.length < 1) return callback?.({ error: 'צריך לפחות שאלה אחת' });
 
     room.setQuestions(questions);
     room.timerEnabled = !!timerEnabled;
@@ -146,7 +136,7 @@ io.on('connection', (socket) => {
 
   socket.on('submit-answer', ({ questionId, text, image }) => {
     const room = rooms.get(currentRoom);
-    if (!room) return;
+    if (!room || room.state !== STATES.ANSWERING) return;
 
     room.submitAnswer(socket.id, questionId, text, image);
 
@@ -162,6 +152,7 @@ io.on('connection', (socket) => {
   socket.on('start-game', (callback) => {
     const room = rooms.get(currentRoom);
     if (!room || !room.isHost(socket.id)) return callback?.({ error: 'לא מורשה' });
+    if (room.state !== STATES.WAITING_TO_START) return callback?.({ error: 'עדיין לא כולם סיימו' });
 
     const roundData = room.startRound();
     if (!roundData) return callback?.({ error: 'אין שאלות' });
@@ -173,13 +164,12 @@ io.on('connection', (socket) => {
   socket.on('submit-guesses', ({ matches }) => {
     const room = rooms.get(currentRoom);
     if (!room || room.state !== STATES.GUESSING) return;
+    if (room.roundGuesses[socket.id]) return;
 
     room.submitGuesses(socket.id, matches);
 
-    const activePlayers = Object.entries(room.players)
-      .filter(([, p]) => p.connected).length;
+    const activePlayers = Object.entries(room.players).filter(([, p]) => p.connected).length;
     const submitted = Object.keys(room.roundGuesses).length;
-
     io.to(currentRoom).emit('guess-progress', { submitted, total: activePlayers });
 
     if (room.allGuessesSubmitted()) {
@@ -191,6 +181,7 @@ io.on('connection', (socket) => {
   socket.on('show-leaderboard', (callback) => {
     const room = rooms.get(currentRoom);
     if (!room || !room.isHost(socket.id)) return callback?.({ error: 'לא מורשה' });
+    if (room.state !== STATES.ROUND_RESULTS) return callback?.({ error: 'לא בשלב הנכון' });
 
     const advanceResult = room.advanceRound();
     const leaderboard = room.getLeaderboard();
@@ -208,6 +199,7 @@ io.on('connection', (socket) => {
   socket.on('next-round', (callback) => {
     const room = rooms.get(currentRoom);
     if (!room || !room.isHost(socket.id)) return callback?.({ error: 'לא מורשה' });
+    if (room.state !== STATES.LEADERBOARD) return callback?.({ error: 'לא בשלב הנכון' });
 
     const roundData = room.startRound();
     if (!roundData) return callback?.({ error: 'אין עוד סיבובים' });
@@ -220,7 +212,6 @@ io.on('connection', (socket) => {
     const room = rooms.get(currentRoom);
     if (!room || room.state !== STATES.GUESSING) return;
 
-    // Auto-submit empty guesses for players who haven't submitted
     Object.entries(room.players).forEach(([pid, p]) => {
       if (p.connected && !room.roundGuesses[pid]) {
         room.submitGuesses(pid, {});
@@ -244,6 +235,8 @@ io.on('connection', (socket) => {
     room.roundResults = [];
     room.scores = {};
     room.roundGuesses = {};
+    room.roundShuffledAnswers = {};
+    room._currentAnswerOwners = null;
     Object.keys(room.players).forEach(id => { room.scores[id] = 0; });
 
     io.to(currentRoom).emit('game-reset');
@@ -251,33 +244,44 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    if (currentRoom) {
-      const room = rooms.get(currentRoom);
-      if (room) {
-        room.removePlayer(socket.id);
-        io.to(currentRoom).emit('player-left', {
-          playerId: socket.id,
-          players: room.getPlayerList()
-        });
+    if (!currentRoom) return;
+    const room = rooms.get(currentRoom);
+    if (!room) return;
 
-        // If mid-guessing, auto-submit empty guesses so the round doesn't hang
-        if (room.state === STATES.GUESSING && !room.roundGuesses[socket.id]) {
-          room.submitGuesses(socket.id, {});
-          if (room.allGuessesSubmitted()) {
-            const results = room.calculateRoundResults();
-            io.to(currentRoom).emit('round-results', results);
-          }
-        }
+    const wasHost = room.isHost(socket.id);
+    room.removePlayer(socket.id);
 
-        // Don't delete the room immediately -- keep it for 5 min for reconnects
-        const activePlayers = Object.values(room.players).filter(p => p.connected);
-        if (activePlayers.length === 0) {
-          setTimeout(() => {
-            const stillEmpty = Object.values(room.players).filter(p => p.connected).length === 0;
-            if (stillEmpty) rooms.delete(currentRoom);
-          }, 5 * 60 * 1000);
-        }
+    // Host failover
+    if (wasHost) {
+      const newHost = room.migrateHost();
+      if (newHost) {
+        io.to(currentRoom).emit('host-changed', newHost);
       }
+    }
+
+    io.to(currentRoom).emit('player-left', {
+      playerId: socket.id,
+      players: room.getPlayerList()
+    });
+
+    if (room.state === STATES.GUESSING && !room.roundGuesses[socket.id]) {
+      room.submitGuesses(socket.id, {});
+      if (room.allGuessesSubmitted()) {
+        const results = room.calculateRoundResults();
+        io.to(currentRoom).emit('round-results', results);
+      }
+    }
+
+    const activePlayers = Object.values(room.players).filter(p => p.connected);
+    if (activePlayers.length === 0) {
+      const roomRef = room;
+      const roomCode = currentRoom;
+      setTimeout(() => {
+        if (rooms.get(roomCode) === roomRef) {
+          const stillEmpty = Object.values(roomRef.players).filter(p => p.connected).length === 0;
+          if (stillEmpty) rooms.delete(roomCode);
+        }
+      }, 5 * 60 * 1000);
     }
   });
 });

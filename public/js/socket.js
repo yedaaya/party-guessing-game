@@ -4,7 +4,7 @@ const Socket = (() => {
 
   function _save() {
     try {
-      const data = { roomCode: _roomCode, playerName: _playerName, isHost: _isHost };
+      const data = { roomCode: _roomCode, playerName: _playerName, isHost: _isHost, previousId: socket.id || _previousId };
       sessionStorage.setItem('game_session', JSON.stringify(data));
     } catch (e) { /* ignore */ }
   }
@@ -32,6 +32,7 @@ const Socket = (() => {
     _roomCode = saved.roomCode;
     _playerName = saved.playerName;
     _isHost = saved.isHost;
+    _previousId = saved.previousId || null;
   }
 
   socket.on('connect', () => {

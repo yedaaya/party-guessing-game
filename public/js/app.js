@@ -74,6 +74,10 @@ const App = (() => {
         state.screen = 'answering';
         if (state.questions.length > 0) {
           QuestionsScreen.init(state.questions);
+          // Skip already-answered questions
+          if (gameState.answeredQuestionIds) {
+            QuestionsScreen.skipAnswered(gameState.answeredQuestionIds);
+          }
           renderScreen(QuestionsScreen.render());
         } else {
           renderScreen(renderWaitingGeneric('ממתינים...'));
@@ -100,6 +104,7 @@ const App = (() => {
         break;
 
       case 'guessing':
+        state.screen = 'guessing';
         renderScreen(renderWaitingGeneric('סיבוב ניחושים מתנהל... ממתינים לסיבוב הבא'));
         break;
 
@@ -166,6 +171,7 @@ const App = (() => {
     });
 
     Socket.on('all-answers-done', () => {
+      state.screen = 'waiting_to_start';
       if (state.isHost) {
         renderScreen(`
           <div class="screen">
@@ -179,6 +185,8 @@ const App = (() => {
             </div>
           </div>
         `);
+      } else {
+        renderScreen(renderWaitingGeneric('כולם סיימו! ממתינים שהמנהל יתחיל את המשחק...'));
       }
     });
 
@@ -226,9 +234,18 @@ const App = (() => {
     });
 
     Socket.on('game-reset', () => {
+      GuessingScreen.destroy();
       state.screen = 'waiting';
       state.questions = [];
+      QuestionSetupScreen.reset();
       renderScreen(LobbyScreen.renderWaiting(state.roomCode, state.players, state.isHost));
+    });
+
+    Socket.on('host-changed', (data) => {
+      if (data.newHostId === Socket.getId()) {
+        state.isHost = true;
+        Socket.setRoom(state.roomCode, state.playerName, true);
+      }
     });
   }
 
@@ -335,8 +352,10 @@ const App = (() => {
   }
 
   function showHome() {
+    GuessingScreen.destroy();
     state = { screen: 'home', roomCode: null, playerName: null, isHost: false, players: [], questions: [] };
     Socket.clearSession();
+    QuestionSetupScreen.reset();
     renderScreen(LobbyScreen.renderHome());
   }
 

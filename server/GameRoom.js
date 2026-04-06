@@ -15,6 +15,16 @@ const STATES = {
   FINAL: 'final'
 };
 
+// Fisher-Yates shuffle (unbiased)
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 class GameRoom {
   constructor(code, hostSocketId) {
     this.code = code;
@@ -22,7 +32,7 @@ class GameRoom {
     this.state = STATES.LOBBY;
     this.players = {};
     this.questions = [];
-    this.answers = {};       // questionId -> { playerId: { text, image } }
+    this.answers = {};
     this.currentRound = 0;
     this.roundResults = [];
     this.scores = {};
@@ -31,6 +41,7 @@ class GameRoom {
     this.roundGuesses = {};
     this.roundStartTime = null;
     this.roundShuffledAnswers = {};
+    this._currentAnswerOwners = null;
     this.createdAt = Date.now();
     this.lastActivity = Date.now();
     this._avatarIndex = 0;
@@ -39,9 +50,14 @@ class GameRoom {
 
   addPlayer(socketId, name) {
     if (this.state !== STATES.LOBBY) return { error: 'המשחק כבר התחיל' };
-    const existing = Object.values(this.players).find(p => p.name === name);
-    if (existing && existing.connected) {
-      return { error: 'שם זה כבר תפוס' };
+
+    // Clean up disconnected player with same name
+    const existingEntry = Object.entries(this.players).find(([, p]) => p.name === name);
+    if (existingEntry) {
+      if (existingEntry[1].connected) return { error: 'שם זה כבר תפוס' };
+      const oldId = existingEntry[0];
+      delete this.players[oldId];
+      delete this.scores[oldId];
     }
 
     const avatar = AVATARS[this._avatarIndex % AVATARS.length];
@@ -64,30 +80,52 @@ class GameRoom {
   }
 
   reconnectPlayer(socketId, oldSocketId) {
-    if (this.players[oldSocketId]) {
-      this.players[socketId] = { ...this.players[oldSocketId], connected: true };
-      delete this.players[socketId].disconnectedAt;
-      this.scores[socketId] = this.scores[oldSocketId] || 0;
-      delete this.players[oldSocketId];
-      delete this.scores[oldSocketId];
+    if (!this.players[oldSocketId] || socketId === oldSocketId) return;
 
-      // Migrate answers to new socket ID
-      Object.keys(this.answers).forEach(qId => {
-        if (this.answers[qId][oldSocketId]) {
-          this.answers[qId][socketId] = this.answers[qId][oldSocketId];
-          delete this.answers[qId][oldSocketId];
+    this.players[socketId] = { ...this.players[oldSocketId], connected: true };
+    delete this.players[socketId].disconnectedAt;
+    this.scores[socketId] = this.scores[oldSocketId] || 0;
+    delete this.players[oldSocketId];
+    delete this.scores[oldSocketId];
+
+    // Migrate answers
+    Object.keys(this.answers).forEach(qId => {
+      if (this.answers[qId][oldSocketId]) {
+        this.answers[qId][socketId] = this.answers[qId][oldSocketId];
+        delete this.answers[qId][oldSocketId];
+      }
+    });
+
+    // Migrate round guesses
+    if (this.roundGuesses[oldSocketId]) {
+      this.roundGuesses[socketId] = this.roundGuesses[oldSocketId];
+      delete this.roundGuesses[oldSocketId];
+    }
+
+    // Migrate _currentAnswerOwners (critical for guessing phase)
+    if (this._currentAnswerOwners) {
+      Object.entries(this._currentAnswerOwners).forEach(([anonId, pid]) => {
+        if (pid === oldSocketId) {
+          this._currentAnswerOwners[anonId] = socketId;
         }
       });
+    }
 
-      // Migrate round guesses
-      if (this.roundGuesses[oldSocketId]) {
-        this.roundGuesses[socketId] = this.roundGuesses[oldSocketId];
-        delete this.roundGuesses[oldSocketId];
+    // Migrate past roundResults for correct final stats
+    this.roundResults.forEach(rr => {
+      if (rr.answerOwners) {
+        Object.entries(rr.answerOwners).forEach(([anonId, pid]) => {
+          if (pid === oldSocketId) rr.answerOwners[anonId] = socketId;
+        });
       }
+      if (rr.guesses && rr.guesses[oldSocketId]) {
+        rr.guesses[socketId] = rr.guesses[oldSocketId];
+        delete rr.guesses[oldSocketId];
+      }
+    });
 
-      if (this.hostSocketId === oldSocketId) {
-        this.hostSocketId = socketId;
-      }
+    if (this.hostSocketId === oldSocketId) {
+      this.hostSocketId = socketId;
     }
   }
 
@@ -101,8 +139,17 @@ class GameRoom {
     return false;
   }
 
-  getGameState() {
-    return {
+  migrateHost() {
+    const nextHost = Object.entries(this.players).find(([, p]) => p.connected);
+    if (nextHost) {
+      this.hostSocketId = nextHost[0];
+      return { newHostId: nextHost[0], name: nextHost[1].name };
+    }
+    return null;
+  }
+
+  getGameState(forPlayerId) {
+    const gs = {
       state: this.state,
       roomCode: this.code,
       players: this.getPlayerList(),
@@ -113,6 +160,19 @@ class GameRoom {
       timerDuration: this.timerDuration,
       leaderboard: this.getLeaderboard()
     };
+
+    // Include answering progress for the specific player
+    if (forPlayerId && this.state === STATES.ANSWERING) {
+      const answered = [];
+      this.questions.forEach(q => {
+        if (this.answers[q.id] && this.answers[q.id][forPlayerId]) {
+          answered.push(q.id);
+        }
+      });
+      gs.answeredQuestionIds = answered;
+    }
+
+    return gs;
   }
 
   setQuestions(questions) {
@@ -158,9 +218,10 @@ class GameRoom {
     const question = this.questions[this.currentRound];
     const questionAnswers = this.answers[question.id] || {};
 
-    // Create shuffled answer list with anonymous IDs
-    const answerEntries = Object.entries(questionAnswers);
-    const shuffled = [...answerEntries].sort(() => Math.random() - 0.5);
+    // Only include answers from connected players
+    const connectedIds = new Set(Object.keys(this.players).filter(id => this.players[id].connected));
+    const answerEntries = Object.entries(questionAnswers).filter(([pid]) => connectedIds.has(pid));
+    const shuffled = shuffle(answerEntries);
 
     const anonymousAnswers = {};
     const answerOwners = {};
@@ -189,6 +250,8 @@ class GameRoom {
   }
 
   submitGuesses(socketId, matches) {
+    if (this.roundGuesses[socketId]) return; // prevent double submission
+
     const timeRemaining = this.timerEnabled
       ? Math.max(0, this.timerDuration - (Date.now() - this.roundStartTime))
       : 0;
@@ -209,7 +272,6 @@ class GameRoom {
     const answerOwners = this._currentAnswerOwners;
     const totalPlayers = Object.keys(this.players).filter(id => this.players[id].connected).length;
     const playerResults = {};
-
     const guessesForStats = {};
 
     Object.entries(this.roundGuesses).forEach(([guesserId, { matches, timeRemaining }]) => {
@@ -234,15 +296,13 @@ class GameRoom {
       );
 
       this.scores[guesserId] = (this.scores[guesserId] || 0) + score.totalPoints;
-
       playerResults[guesserId] = { ...score, details };
     });
 
-    // Store for end-game stats
     this.roundResults.push({
       questionId: question.id,
       guesses: guessesForStats,
-      answerOwners,
+      answerOwners: { ...answerOwners },
       answers: this.roundShuffledAnswers
     });
 
@@ -251,7 +311,6 @@ class GameRoom {
       this.players
     );
 
-    // Build reveal data (correct mapping for all answers)
     const reveal = {};
     Object.entries(answerOwners).forEach(([answerId, playerId]) => {
       reveal[answerId] = {
@@ -277,7 +336,7 @@ class GameRoom {
   }
 
   getLeaderboard() {
-    const sorted = Object.entries(this.scores)
+    return Object.entries(this.scores)
       .filter(([id]) => this.players[id])
       .map(([id, score]) => ({
         id,
@@ -287,8 +346,6 @@ class GameRoom {
         score
       }))
       .sort((a, b) => b.score - a.score);
-
-    return sorted;
   }
 
   advanceRound() {
@@ -307,23 +364,13 @@ class GameRoom {
   getFinalResults() {
     const leaderboard = this.getLeaderboard();
     const stats = calculateStatistics(this.players, this.roundResults, this.questions);
-
-    return {
-      podium: leaderboard.slice(0, 3),
-      fullLeaderboard: leaderboard,
-      stats
-    };
+    return { podium: leaderboard.slice(0, 3), fullLeaderboard: leaderboard, stats };
   }
 
   getPlayerList() {
     return Object.entries(this.players)
       .filter(([, p]) => p.connected)
-      .map(([id, p]) => ({
-        id,
-        name: p.name,
-        avatar: p.avatar,
-        color: p.color
-      }));
+      .map(([id, p]) => ({ id, name: p.name, avatar: p.avatar, color: p.color }));
   }
 
   isHost(socketId) {

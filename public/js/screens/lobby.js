@@ -56,9 +56,9 @@ const LobbyScreen = (() => {
 
   function renderWaiting(roomCode, players, isHost) {
     const playerChips = players.map(p => `
-      <div class="player-chip ${p.id === Socket.getId() ? '' : ''}" style="border-color: ${p.color}">
+      <div class="player-chip" style="border-color: ${p.color}">
         <span class="avatar">${p.avatar}</span>
-        <span>${p.name}</span>
+        <span>${escapeHtml(p.name)}</span>
       </div>
     `).join('');
 

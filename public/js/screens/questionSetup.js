@@ -177,5 +177,14 @@ const QuestionSetupScreen = (() => {
     });
   }
 
-  return { init, render, toggleQuestion, addCustom, removeCustom, toggleTimer, setTimer, confirm };
+  function reset() {
+    customQuestions = [];
+    timerEnabled = false;
+    timerDuration = 60000;
+    if (questionBank.length > 0) {
+      selectedIds = new Set(questionBank.map(q => q.id));
+    }
+  }
+
+  return { init, render, toggleQuestion, addCustom, removeCustom, toggleTimer, setTimer, confirm, reset };
 })();

@@ -18,7 +18,7 @@ const LeaderboardScreen = (() => {
         <div class="leaderboard-row ${isMe ? 'glow' : ''}" style="animation-delay: ${index * 100}ms; position: relative; ${isMe ? 'border-color: var(--accent-purple);' : ''}">
           <span class="leaderboard-rank ${rankClass}">${rankSymbol}</span>
           <span class="leaderboard-avatar">${entry.avatar}</span>
-          <span class="leaderboard-name">${entry.name} ${isMe ? '(אתה)' : ''}</span>
+          <span class="leaderboard-name">${escapeHtml(entry.name)} ${isMe ? '(אתה)' : ''}</span>
           <span class="leaderboard-score">${entry.score.toLocaleString()}</span>
           <div class="leaderboard-bar-container">
             <div class="leaderboard-bar" style="width: ${barWidth}%; animation-delay: ${index * 100 + 300}ms"></div>

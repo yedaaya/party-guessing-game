@@ -20,7 +20,7 @@ const ResultsScreen = (() => {
         <div class="result-item correct" style="animation-delay: ${index * 120}ms; background: var(--bg-card); border-color: var(--border-glass)">
           <div style="display:flex; align-items:center; gap:8px; min-width:80px">
             <span style="font-size:1.3rem">${player.avatar}</span>
-            <strong style="color:${player.color}">${player.name}</strong>
+            <strong style="color:${player.color}">${escapeHtml(player.name)}</strong>
           </div>
           <div class="result-details" style="flex:1; border-right: 2px solid ${player.color}; padding-right:12px">
             <div style="font-size:0.95rem">${escapeHtml(text)}</div>
@@ -42,7 +42,7 @@ const ResultsScreen = (() => {
         <div class="result-item ${isCorrect ? 'correct' : 'wrong'}" style="animation-delay: ${index * 100}ms">
           <span class="result-icon">${isCorrect ? '✅' : '❌'}</span>
           <div class="result-details">
-            <div><strong>${actualPlayer.avatar} ${actualPlayer.name}</strong></div>
+            <div><strong>${actualPlayer.avatar} ${escapeHtml(actualPlayer.name)}</strong></div>
             ${!isCorrect ? `<div class="result-answer" style="color: var(--accent-pink)">ניחשת: ${getPlayerName(detail.guessed)}</div>` : ''}
           </div>
         </div>

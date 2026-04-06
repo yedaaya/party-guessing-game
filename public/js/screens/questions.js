@@ -121,6 +121,7 @@ const QuestionsScreen = (() => {
     const img = new Image();
 
     img.onload = () => {
+      URL.revokeObjectURL(img.src);
       const maxSize = 800;
       let { width, height } = img;
       if (width > maxSize || height > maxSize) {
@@ -160,5 +161,18 @@ const QuestionsScreen = (() => {
     el.innerHTML = items;
   }
 
-  return { init, render, next, prev, handleImage, updateProgress };
+  function skipAnswered(answeredIds) {
+    const answeredSet = new Set(answeredIds);
+    // Find the first unanswered question
+    let firstUnanswered = questions.length;
+    for (let i = 0; i < questions.length; i++) {
+      if (!answeredSet.has(questions[i].id)) {
+        firstUnanswered = i;
+        break;
+      }
+    }
+    currentIndex = firstUnanswered;
+  }
+
+  return { init, render, next, prev, handleImage, updateProgress, skipAnswered };
 })();

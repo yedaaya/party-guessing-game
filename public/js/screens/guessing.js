@@ -11,13 +11,16 @@ const GuessingScreen = (() => {
 
     if (data.timerEnabled && data.timerDuration > 0) {
       timeLeft = Math.ceil(data.timerDuration / 1000);
+      timerDeadline = Date.now() + data.timerDuration;
       startTimer();
     }
   }
 
+  let timerDeadline = 0;
+
   function startTimer() {
     timerInterval = setInterval(() => {
-      timeLeft--;
+      timeLeft = Math.max(0, Math.ceil((timerDeadline - Date.now()) / 1000));
       const timerEl = document.getElementById('round-timer');
       if (timerEl) {
         const mins = Math.floor(timeLeft / 60);
@@ -32,7 +35,7 @@ const GuessingScreen = (() => {
         stopTimer();
         forceSubmit();
       }
-    }, 1000);
+    }, 250);
   }
 
   function stopTimer() {
@@ -54,6 +57,7 @@ const GuessingScreen = (() => {
     const answerPool = unassignedAnswers.map(([aId, ans]) => `
       <div class="answer-card" draggable="true" data-answer-id="${aId}"
         ondragstart="GuessingScreen.onDragStart(event)"
+        ondragend="GuessingScreen.onDragEnd(event)"
         onclick="GuessingScreen.onTouchStart(event)"
         ontouchend="GuessingScreen.onTouchStart(event)">
         <div class="answer-text">${escapeHtml(ans.text)}</div>
@@ -70,7 +74,7 @@ const GuessingScreen = (() => {
         <div class="player-slot ${isSelf ? 'self-slot' : ''}" data-player-id="${p.id}">
           <div class="player-slot-name" style="border-left: 3px solid ${p.color}">
             <span class="slot-avatar">${p.avatar}</span>
-            <span>${p.name}</span>
+            <span>${escapeHtml(p.name)}</span>
           </div>
           <div class="player-slot-drop ${assignedAnswer ? 'filled' : ''} ${isSelf ? 'self-slot' : ''}"
             data-player-id="${p.id}"
@@ -142,6 +146,11 @@ const GuessingScreen = (() => {
     e.target.closest('.answer-card')?.classList.add('dragging');
   }
 
+  function onDragEnd(e) {
+    e.target.closest('.answer-card')?.classList.remove('dragging');
+    draggedAnswerId = null;
+  }
+
   function onDragOver(e) {
     e.preventDefault();
     const slot = e.target.closest('.player-slot-drop');
@@ -170,8 +179,11 @@ const GuessingScreen = (() => {
 
   // Tap-to-assign (primary mobile interaction)
   let selectedAnswerId = null;
+  let lastTouchTime = 0;
 
   function onTouchStart(e) {
+    if (e.type === 'click' && Date.now() - lastTouchTime < 500) return;
+    if (e.type === 'touchend') lastTouchTime = Date.now();
     e.preventDefault();
     const card = e.target.closest('.answer-card');
     if (!card) return;
@@ -247,7 +259,6 @@ const GuessingScreen = (() => {
   function forceSubmit() {
     stopTimer();
     Socket.emit('submit-guesses', { matches: assignments });
-    Socket.emit('timer-expired');
     App.renderScreen(`
       <div class="screen">
         <div class="screen-content" style="justify-content: center; min-height: 80vh">
@@ -293,15 +304,9 @@ const GuessingScreen = (() => {
 
   return {
     init, render, submit, forceSubmit, destroy,
-    onDragStart, onDragOver, onDragLeave, onDrop,
+    onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
     onTouchStart, onSlotClick,
     removeAssignment, assignAnswer,
     updateGuessProgress, deselectAll
   };
 })();
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}

@@ -21,7 +21,7 @@ const PodiumScreen = (() => {
         ${second ? `
           <div class="podium-place">
             <div class="podium-avatar">${second.avatar}</div>
-            <div class="podium-name">${second.name}</div>
+            <div class="podium-name">${escapeHtml(second.name)}</div>
             <div class="podium-score">${second.score.toLocaleString()}</div>
             <div class="podium-bar second">2</div>
           </div>
@@ -29,7 +29,7 @@ const PodiumScreen = (() => {
         ${first ? `
           <div class="podium-place">
             <div class="podium-avatar" style="font-size: 3rem">${first.avatar}</div>
-            <div class="podium-name">${first.name}</div>
+            <div class="podium-name">${escapeHtml(first.name)}</div>
             <div class="podium-score">${first.score.toLocaleString()}</div>
             <div class="podium-bar first">1</div>
           </div>
@@ -37,7 +37,7 @@ const PodiumScreen = (() => {
         ${third ? `
           <div class="podium-place">
             <div class="podium-avatar">${third.avatar}</div>
-            <div class="podium-name">${third.name}</div>
+            <div class="podium-name">${escapeHtml(third.name)}</div>
             <div class="podium-score">${third.score.toLocaleString()}</div>
             <div class="podium-bar third">3</div>
           </div>
@@ -53,7 +53,7 @@ const PodiumScreen = (() => {
       <div class="leaderboard-row" style="animation-delay: ${i * 80}ms">
         <span class="leaderboard-rank ${i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : ''}">${i + 1}</span>
         <span class="leaderboard-avatar">${entry.avatar}</span>
-        <span class="leaderboard-name">${entry.name}</span>
+          <span class="leaderboard-name">${escapeHtml(entry.name)}</span>
         <span class="leaderboard-score">${entry.score.toLocaleString()}</span>
       </div>
     `).join('');
@@ -99,7 +99,7 @@ const PodiumScreen = (() => {
         <div class="stat-card">
           <span class="stat-emoji">🧠</span>
           <div class="stat-title">קורא/ת מחשבות</div>
-          <div class="stat-name">${stats.mindReader.name}</div>
+          <div class="stat-name">${escapeHtml(stats.mindReader.name)}</div>
           <div class="stat-value">${stats.mindReader.correctCount} ניחושים נכונים</div>
         </div>
       `);
@@ -110,7 +110,7 @@ const PodiumScreen = (() => {
         <div class="stat-card">
           <span class="stat-emoji">🕵️</span>
           <div class="stat-title">אדם המסתורין</div>
-          <div class="stat-name">${stats.mysteryPerson.name}</div>
+          <div class="stat-name">${escapeHtml(stats.mysteryPerson.name)}</div>
           <div class="stat-value">רק ${stats.mysteryPerson.percentage}% ניחשו נכון</div>
         </div>
       `);
@@ -121,7 +121,7 @@ const PodiumScreen = (() => {
         <div class="stat-card">
           <span class="stat-emoji">📖</span>
           <div class="stat-title">ספר פתוח</div>
-          <div class="stat-name">${stats.openBook.name}</div>
+          <div class="stat-name">${escapeHtml(stats.openBook.name)}</div>
           <div class="stat-value">${stats.openBook.percentage}% ניחשו נכון</div>
         </div>
       `);
@@ -132,7 +132,7 @@ const PodiumScreen = (() => {
         <div class="stat-card stat-card-full">
           <span class="stat-emoji">💕</span>
           <div class="stat-title">נשמות תואמות</div>
-          <div class="stat-name">${stats.soulmates.player1.name} & ${stats.soulmates.player2.name}</div>
+          <div class="stat-name">${escapeHtml(stats.soulmates.player1.name)} & ${escapeHtml(stats.soulmates.player2.name)}</div>
           <div class="stat-value">ניחשו אחד את השני ${stats.soulmates.count} פעמים</div>
         </div>
       `);
@@ -143,8 +143,8 @@ const PodiumScreen = (() => {
         <div class="stat-card stat-card-full">
           <span class="stat-emoji">😱</span>
           <div class="stat-title">ההפתעה של הערב</div>
-          <div class="stat-name">${stats.surpriseOfTheNight.name}</div>
-          <div class="stat-value">"${truncate(stats.surpriseOfTheNight.answerText, 60)}" — הטעה/תה ${stats.surpriseOfTheNight.fooledCount} שחקנים</div>
+          <div class="stat-name">${escapeHtml(stats.surpriseOfTheNight.name)}</div>
+          <div class="stat-value">"${escapeHtml(truncate(stats.surpriseOfTheNight.answerText, 60))}" — הטעה/תה ${stats.surpriseOfTheNight.fooledCount} שחקנים</div>
         </div>
       `);
     }

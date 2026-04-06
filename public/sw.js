@@ -1,4 +1,4 @@
-const CACHE_NAME = 'party-game-v1';
+const CACHE_NAME = 'party-game-v2';
 const ASSETS = [
   '/',
   '/css/style.css',
@@ -11,6 +11,7 @@ const ASSETS = [
   '/js/screens/results.js',
   '/js/screens/leaderboard.js',
   '/js/screens/podium.js',
+  '/js/ui/utils.js',
   '/js/ui/animations.js',
   '/js/ui/sounds.js',
   '/manifest.json'
