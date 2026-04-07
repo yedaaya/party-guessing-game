@@ -58,8 +58,7 @@ const GuessingScreen = (() => {
       <div class="answer-card" draggable="true" data-answer-id="${aId}"
         ondragstart="GuessingScreen.onDragStart(event)"
         ondragend="GuessingScreen.onDragEnd(event)"
-        onclick="GuessingScreen.onTouchStart(event)"
-        ontouchend="GuessingScreen.onTouchStart(event)">
+        onclick="GuessingScreen.onCardTap(event)">
         <div class="answer-text">${escapeHtml(ans.text)}</div>
         ${ans.image ? `<img class="answer-image" src="${ans.image}" alt="answer image">` : ''}
       </div>
@@ -177,14 +176,9 @@ const GuessingScreen = (() => {
     draggedAnswerId = null;
   }
 
-  // Tap-to-assign (primary mobile interaction)
   let selectedAnswerId = null;
-  let lastTouchTime = 0;
 
-  function onTouchStart(e) {
-    if (e.type === 'click' && Date.now() - lastTouchTime < 500) return;
-    if (e.type === 'touchend') lastTouchTime = Date.now();
-    e.preventDefault();
+  function onCardTap(e) {
     const card = e.target.closest('.answer-card');
     if (!card) return;
 
@@ -305,7 +299,7 @@ const GuessingScreen = (() => {
   return {
     init, render, submit, forceSubmit, destroy,
     onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
-    onTouchStart, onSlotClick,
+    onCardTap, onSlotClick,
     removeAssignment, assignAnswer,
     updateGuessProgress, deselectAll
   };
