@@ -71,9 +71,9 @@ io.on('connection', (socket) => {
 
       if (room.state === STATES.GUESSING && !room.roundGuesses[socket.id]) {
         room.submitGuesses(socket.id, {});
-        const activePlayers = Object.entries(room.players).filter(([, p]) => p.connected).length;
-        const submitted = Object.keys(room.roundGuesses).length;
-        io.to(roomCode).emit('guess-progress', { submitted, total: activePlayers });
+        const activeList = Object.entries(room.players).filter(([, p]) => p.connected);
+        const submitted = activeList.filter(([id]) => room.roundGuesses[id]).length;
+        io.to(roomCode).emit('guess-progress', { submitted, total: activeList.length });
         if (room.allGuessesSubmitted()) {
           const results = room.calculateRoundResults();
           io.to(roomCode).emit('round-results', results);
@@ -170,9 +170,9 @@ io.on('connection', (socket) => {
 
     room.submitGuesses(socket.id, matches);
 
-    const activePlayers = Object.entries(room.players).filter(([, p]) => p.connected).length;
-    const submitted = Object.keys(room.roundGuesses).length;
-    io.to(currentRoom).emit('guess-progress', { submitted, total: activePlayers });
+    const activeList = Object.entries(room.players).filter(([, p]) => p.connected);
+    const submitted = activeList.filter(([id]) => room.roundGuesses[id]).length;
+    io.to(currentRoom).emit('guess-progress', { submitted, total: activeList.length });
 
     if (room.allGuessesSubmitted()) {
       const results = room.calculateRoundResults();
@@ -213,6 +213,9 @@ io.on('connection', (socket) => {
   socket.on('timer-expired', () => {
     const room = rooms.get(currentRoom);
     if (!room || room.state !== STATES.GUESSING) return;
+    if (!room.timerEnabled) return;
+    const elapsed = Date.now() - room.roundStartTime;
+    if (elapsed < room.timerDuration - 2000) return;
 
     Object.entries(room.players).forEach(([pid, p]) => {
       if (p.connected && !room.roundGuesses[pid]) {
@@ -239,6 +242,7 @@ io.on('connection', (socket) => {
     room.roundGuesses = {};
     room.roundShuffledAnswers = {};
     room._currentAnswerOwners = null;
+    room.idAliases = {};
     Object.keys(room.players).forEach(id => { room.scores[id] = 0; });
 
     io.to(currentRoom).emit('game-reset');
@@ -265,6 +269,12 @@ io.on('connection', (socket) => {
       playerId: socket.id,
       players: room.getPlayerList()
     });
+
+    // If disconnecting during answering, check if remaining players are all done
+    if (room.state === STATES.ANSWERING && room.allPlayersFinished()) {
+      room.state = STATES.WAITING_TO_START;
+      io.to(currentRoom).emit('all-answers-done');
+    }
 
     if (room.state === STATES.GUESSING && !room.roundGuesses[socket.id]) {
       room.submitGuesses(socket.id, {});

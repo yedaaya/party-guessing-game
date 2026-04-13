@@ -17,8 +17,10 @@ const GuessingScreen = (() => {
   }
 
   let timerDeadline = 0;
+  let lastCountdownSecond = -1;
 
   function startTimer() {
+    lastCountdownSecond = -1;
     timerInterval = setInterval(() => {
       timeLeft = Math.max(0, Math.ceil((timerDeadline - Date.now()) / 1000));
       const timerEl = document.getElementById('round-timer');
@@ -30,7 +32,10 @@ const GuessingScreen = (() => {
           (timeLeft <= 5 ? ' danger' : timeLeft <= 15 ? ' warning' : '');
       }
 
-      if (timeLeft <= 10 && timeLeft > 0) SoundManager.countdown();
+      if (timeLeft <= 10 && timeLeft > 0 && timeLeft !== lastCountdownSecond) {
+        lastCountdownSecond = timeLeft;
+        SoundManager.countdown();
+      }
       if (timeLeft <= 0) {
         stopTimer();
         forceSubmit();

@@ -4,15 +4,23 @@ const QuestionSetupScreen = (() => {
   let customQuestions = [];
   let timerEnabled = false;
   let timerDuration = 60000;
+  let _initPromise = null;
 
   async function init() {
-    try {
-      const resp = await fetch('/api/questions');
-      questionBank = await resp.json();
-      selectedIds = new Set(questionBank.map(q => q.id));
-    } catch (e) {
-      console.error('Failed to load questions:', e);
-    }
+    _initPromise = (async () => {
+      try {
+        const resp = await fetch('/api/questions');
+        questionBank = await resp.json();
+        selectedIds = new Set(questionBank.map(q => q.id));
+      } catch (e) {
+        console.error('Failed to load questions:', e);
+      }
+    })();
+    return _initPromise;
+  }
+
+  function whenReady() {
+    return _initPromise || Promise.resolve();
   }
 
   function render() {
@@ -186,5 +194,5 @@ const QuestionSetupScreen = (() => {
     }
   }
 
-  return { init, render, toggleQuestion, addCustom, removeCustom, toggleTimer, setTimer, confirm, reset };
+  return { init, render, toggleQuestion, addCustom, removeCustom, toggleTimer, setTimer, confirm, reset, whenReady };
 })();

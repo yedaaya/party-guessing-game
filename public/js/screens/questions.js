@@ -31,7 +31,7 @@ const QuestionsScreen = (() => {
 
           <div class="answer-area">
             <textarea class="input" id="answer-text" rows="3"
-              placeholder="התשובה שלך...">${existingAnswer.text || ''}</textarea>
+              placeholder="התשובה שלך...">${escapeHtml(existingAnswer.text || '')}</textarea>
 
             ${q.supportsImage ? `
               <div class="image-upload-area ${existingAnswer.image ? 'has-image' : ''}"

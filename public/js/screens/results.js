@@ -8,7 +8,7 @@ const ResultsScreen = (() => {
   }
 
   function render() {
-    if (!resultsData || !myResults) return '';
+    if (!resultsData) return '';
 
     // Full answer reveal: show every answer with the player who wrote it
     const answerRevealItems = Object.entries(resultsData.reveal).map(([answerId, player], index) => {
@@ -31,6 +31,30 @@ const ResultsScreen = (() => {
     }).join('');
 
     // Personal results: what did I get right/wrong
+    // If myResults is missing (reconnection edge case), show just the reveal
+    if (!myResults) {
+      return `
+        <div class="screen" id="results-screen">
+          <div class="screen-content">
+            <div class="round-header">
+              <div class="round-number">סיבוב ${resultsData.roundNumber} מתוך ${resultsData.totalRounds}</div>
+              <div class="round-question">${escapeHtml(resultsData.question)}</div>
+            </div>
+            <div class="section-label">📋 מי ענה מה?</div>
+            <div class="results-list stagger-children">${answerRevealItems}</div>
+            ${App.isHost() ? `
+              <button class="btn btn-primary btn-lg btn-full" onclick="App.showLeaderboard()">🏆 טבלת ניקוד</button>
+            ` : `
+              <div class="status-badge waiting" style="align-self: center">
+                <span>ממתינים למנהל המשחק</span>
+                <span class="waiting-dots"><span></span><span></span><span></span></span>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
     const myGuessItems = Object.entries(myResults.details || {}).map(([answerId, detail], index) => {
       const actualPlayer = resultsData.reveal[answerId];
       if (!actualPlayer) return '';
@@ -128,9 +152,9 @@ const ResultsScreen = (() => {
 
   function getPlayerName(playerId) {
     const fromReveal = Object.values(resultsData?.reveal || {}).find(r => r.playerId === playerId);
-    if (fromReveal) return fromReveal.name;
+    if (fromReveal) return escapeHtml(fromReveal.name);
     const player = App.getPlayers().find(p => p.id === playerId);
-    return player ? player.name : 'לא ידוע';
+    return player ? escapeHtml(player.name) : 'לא ידוע';
   }
 
   function getPlayerAvatar(playerId) {

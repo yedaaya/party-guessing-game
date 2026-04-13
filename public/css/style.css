@@ -676,6 +676,8 @@ textarea.input {
 .answer-card .answer-text {
   font-size: 0.95rem;
   line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .answer-card .answer-image {
@@ -706,11 +708,14 @@ textarea.input {
   padding: 8px 14px;
   background: var(--bg-card);
   border-radius: var(--radius-md);
-  min-width: 100px;
+  min-width: 80px;
+  max-width: 45%;
   font-weight: 500;
   font-size: 0.9rem;
   flex-shrink: 0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .player-slot-name .slot-avatar {
@@ -750,6 +755,8 @@ textarea.input {
 .player-slot-drop.filled .answer-text {
   flex: 1;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .player-slot-drop.filled .remove-btn {

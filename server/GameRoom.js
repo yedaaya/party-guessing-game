@@ -299,13 +299,13 @@ class GameRoom {
     const activePlayers = Object.entries(this.players)
       .filter(([, p]) => p.connected)
       .map(([id]) => id);
-    return activePlayers.every(pid => this.roundGuesses[pid]);
+    return activePlayers.length > 0 && activePlayers.every(pid => this.roundGuesses[pid]);
   }
 
   calculateRoundResults() {
     const question = this.questions[this.currentRound];
     const answerOwners = this._currentAnswerOwners;
-    const totalPlayers = Object.keys(this.players).filter(id => this.players[id].connected).length;
+    const totalPlayers = Object.keys(answerOwners).length;
     const playerResults = {};
     const guessesForStats = {};
 

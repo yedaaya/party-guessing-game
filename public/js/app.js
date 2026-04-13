@@ -63,7 +63,12 @@ const App = (() => {
       case 'question_setup':
         if (state.isHost) {
           state.screen = 'question-setup';
-          renderScreen(QuestionSetupScreen.render());
+          renderScreen(renderWaitingGeneric('טוען שאלות...'));
+          QuestionSetupScreen.whenReady().then(() => {
+            if (state.screen === 'question-setup') {
+              renderScreen(QuestionSetupScreen.render());
+            }
+          });
         } else {
           state.screen = 'waiting';
           renderScreen(LobbyScreen.renderWaiting(state.roomCode, state.players, state.isHost));
@@ -242,9 +247,43 @@ const App = (() => {
     });
 
     Socket.on('host-changed', (data) => {
-      if (data.newHostId === Socket.getId()) {
-        state.isHost = true;
+      const wasHost = state.isHost;
+      state.isHost = (data.newHostId === Socket.getId());
+      if (state.isHost) {
         Socket.setRoom(state.roomCode, state.playerName, true);
+      }
+      // Re-render current screen so host controls appear
+      if (wasHost !== state.isHost) {
+        switch (state.screen) {
+          case 'waiting':
+            renderScreen(LobbyScreen.renderWaiting(state.roomCode, state.players, state.isHost));
+            break;
+          case 'results':
+            renderScreen(ResultsScreen.render());
+            break;
+          case 'leaderboard':
+            renderScreen(LeaderboardScreen.render());
+            break;
+          case 'waiting_to_start':
+            if (state.isHost) {
+              renderScreen(`
+                <div class="screen">
+                  <div class="screen-content" style="justify-content: center; min-height: 80vh">
+                    <span style="font-size: 4rem">🎉</span>
+                    <h1 class="title">כולם סיימו!</h1>
+                    <p class="subtitle">הגיע הזמן להתחיל לנחש</p>
+                    <button class="btn btn-success btn-lg btn-full" onclick="App.startGame()">
+                      🚀 התחלת המשחק
+                    </button>
+                  </div>
+                </div>
+              `);
+            }
+            break;
+          case 'podium':
+            renderScreen(PodiumScreen.render());
+            break;
+        }
       }
     });
   }
