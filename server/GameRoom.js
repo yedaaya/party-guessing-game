@@ -96,11 +96,21 @@ class GameRoom {
       }
     });
 
-    // Migrate round guesses
+    // Migrate current round guesses (keys = guesser IDs)
     if (this.roundGuesses[oldSocketId]) {
       this.roundGuesses[socketId] = this.roundGuesses[oldSocketId];
       delete this.roundGuesses[oldSocketId];
     }
+
+    // Migrate guessed-player VALUES in current round guesses
+    // (other players may have guessed oldSocketId in their matches)
+    Object.values(this.roundGuesses).forEach(({ matches }) => {
+      if (matches) {
+        Object.keys(matches).forEach(aId => {
+          if (matches[aId] === oldSocketId) matches[aId] = socketId;
+        });
+      }
+    });
 
     // Migrate _currentAnswerOwners (critical for guessing phase)
     if (this._currentAnswerOwners) {
@@ -118,9 +128,20 @@ class GameRoom {
           if (pid === oldSocketId) rr.answerOwners[anonId] = socketId;
         });
       }
+      // Migrate guesser keys
       if (rr.guesses && rr.guesses[oldSocketId]) {
         rr.guesses[socketId] = rr.guesses[oldSocketId];
         delete rr.guesses[oldSocketId];
+      }
+      // Migrate guessed-player VALUES inside all match objects
+      if (rr.guesses) {
+        Object.values(rr.guesses).forEach(matches => {
+          if (matches) {
+            Object.keys(matches).forEach(aId => {
+              if (matches[aId] === oldSocketId) matches[aId] = socketId;
+            });
+          }
+        });
       }
     });
 
