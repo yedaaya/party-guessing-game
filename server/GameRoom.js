@@ -42,6 +42,7 @@ class GameRoom {
     this.roundStartTime = null;
     this.roundShuffledAnswers = {};
     this._currentAnswerOwners = null;
+    this.idAliases = {};  // oldId -> newId, for resolving stale IDs
     this.createdAt = Date.now();
     this.lastActivity = Date.now();
     this._avatarIndex = 0;
@@ -79,8 +80,21 @@ class GameRoom {
     this.lastActivity = Date.now();
   }
 
+  resolveId(id) {
+    let resolved = id;
+    let depth = 0;
+    while (this.idAliases[resolved] && depth < 10) {
+      resolved = this.idAliases[resolved];
+      depth++;
+    }
+    return resolved;
+  }
+
   reconnectPlayer(socketId, oldSocketId) {
     if (!this.players[oldSocketId] || socketId === oldSocketId) return;
+
+    // Register alias so any future reference to oldSocketId resolves to socketId
+    this.idAliases[oldSocketId] = socketId;
 
     this.players[socketId] = { ...this.players[oldSocketId], connected: true };
     delete this.players[socketId].disconnectedAt;
@@ -301,11 +315,13 @@ class GameRoom {
       guessesForStats[guesserId] = matches;
 
       Object.entries(matches).forEach(([answerId, guessedPlayerId]) => {
-        const actualPlayerId = answerOwners[answerId];
-        const isCorrect = guessedPlayerId === actualPlayerId;
-        if (isCorrect && guessedPlayerId !== guesserId) correctCount++;
+        const resolvedGuess = this.resolveId(guessedPlayerId);
+        const actualPlayerId = this.resolveId(answerOwners[answerId]);
+        const resolvedGuesser = this.resolveId(guesserId);
+        const isCorrect = resolvedGuess === actualPlayerId;
+        if (isCorrect && resolvedGuess !== resolvedGuesser) correctCount++;
         details[answerId] = {
-          guessed: guessedPlayerId,
+          guessed: resolvedGuess,
           actual: actualPlayerId,
           correct: isCorrect
         };
@@ -320,10 +336,26 @@ class GameRoom {
       playerResults[guesserId] = { ...score, details };
     });
 
+    // Store resolved IDs for accurate end-game stats
+    const resolvedGuesses = {};
+    Object.entries(guessesForStats).forEach(([gid, matches]) => {
+      const resolvedGid = this.resolveId(gid);
+      const resolvedMatches = {};
+      Object.entries(matches).forEach(([aId, pid]) => {
+        resolvedMatches[aId] = this.resolveId(pid);
+      });
+      resolvedGuesses[resolvedGid] = resolvedMatches;
+    });
+
+    const resolvedOwners = {};
+    Object.entries(answerOwners).forEach(([aId, pid]) => {
+      resolvedOwners[aId] = this.resolveId(pid);
+    });
+
     this.roundResults.push({
       questionId: question.id,
-      guesses: guessesForStats,
-      answerOwners: { ...answerOwners },
+      guesses: resolvedGuesses,
+      answerOwners: resolvedOwners,
       answers: this.roundShuffledAnswers
     });
 
@@ -334,11 +366,12 @@ class GameRoom {
 
     const reveal = {};
     Object.entries(answerOwners).forEach(([answerId, playerId]) => {
+      const resolved = this.resolveId(playerId);
       reveal[answerId] = {
-        playerId,
-        name: this.players[playerId]?.name,
-        avatar: this.players[playerId]?.avatar,
-        color: this.players[playerId]?.color
+        playerId: resolved,
+        name: this.players[resolved]?.name || this.players[playerId]?.name,
+        avatar: this.players[resolved]?.avatar || this.players[playerId]?.avatar,
+        color: this.players[resolved]?.color || this.players[playerId]?.color
       };
     });
 
